@@ -1,0 +1,68 @@
+# Keeps Formula/xisto.rb at xisto's latest release and tests it as a new user would.
+# The tap updates itself (no token from the xisto repository needed): every 30 minutes it reads the latest release
+# of xistolang/xisto, and when the version changed it renders the formula from that release's
+# packaging/homebrew/xisto.rb.in with the published sha256, commits it, then installs it on a clean macOS runner and
+# runs test/new-user.sh (brew install, xisto init, xisto add of the NestJS packages, build, run, curl).
+name: update
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Run the new-user test even when the formula did not change"
+        type: boolean
+        default: false
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  formula:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.render.outputs.changed }}
+      version: ${{ steps.render.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render the formula of the latest release
+        id: render
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          TAG=$(gh release view --repo xistolang/xisto --json tagName --jq .tagName)
+          V=${TAG#v}
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          gh release download "$TAG" --repo xistolang/xisto --pattern "xisto-$V-macos-arm64.tar.gz.sha256" --dir "$RUNNER_TEMP"
+          SHA=$(awk '{print $1}' "$RUNNER_TEMP/xisto-$V-macos-arm64.tar.gz.sha256")
+          case "$SHA" in *[!0-9a-f]*|"") echo "::error::bad sha256 for $TAG: '$SHA'"; exit 1 ;; esac
+          [ ${#SHA} -eq 64 ] || { echo "::error::bad sha256 length for $TAG"; exit 1; }
+          gh api "repos/xistolang/xisto/contents/packaging/homebrew/xisto.rb.in?ref=$TAG" --jq .content | base64 -d > "$RUNNER_TEMP/xisto.rb.in"
+          sed -e "s/@VERSION@/$V/g" -e "s/@SHA256@/$SHA/g" "$RUNNER_TEMP/xisto.rb.in" > Formula/xisto.rb
+          if git diff --quiet Formula/xisto.rb; then
+            echo "formula already at $V"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/xisto.rb
+          git commit -qm "xisto $V"
+          git push -q origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  new-user:
+    needs: formula
+    if: ${{ needs.formula.outputs.changed == 'true' || inputs.test }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from the tap and build a NestJS app
+        env:
+          XISTO_EXPECT: ${{ needs.formula.outputs.version }}
+        run: sh test/new-user.sh
