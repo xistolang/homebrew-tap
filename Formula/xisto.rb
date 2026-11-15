@@ -2,9 +2,9 @@
 class Xisto < Formula
   desc "Native compiler for typed TypeScript"
   homepage "https://github.com/xistolang/xisto"
-  url "https://github.com/xistolang/xisto/releases/download/v0.4.0/xisto-0.4.0-macos-arm64.tar.gz"
-  version "0.4.0"
-  sha256 "75cf1d42e4dc8cfb86b45527c0656da28f68b305600c861100546d480008a88d"
+  url "https://github.com/xistolang/xisto/releases/download/v0.4.1/xisto-0.4.1-macos-arm64.tar.gz"
+  version "0.4.1"
+  sha256 "2fc5d23fa6c79db113cefe76f95d23401487ce476052b09c20356f35ce0980b9"
   license "Apache-2.0" => { with: "LLVM-exception" }
 
   depends_on arch: :arm64
