@@ -2,24 +2,24 @@
 class Xisto < Formula
   desc "Native compiler for typed TypeScript"
   homepage "https://github.com/xistolang/xisto"
-  version "0.5.0"
+  version "0.5.1"
   license "Apache-2.0" => { with: "LLVM-exception" }
 
   on_macos do
     depends_on arch: :arm64 # (Intel Macs: build from source)
     on_arm do
-      url "https://github.com/xistolang/xisto/releases/download/v0.5.0/xisto-0.5.0-macos-arm64.tar.gz"
-      sha256 "09b66e5decd1b665d682d6fe6e5bad4ba8a836247b0554267119e4cda535ef0d"
+      url "https://github.com/xistolang/xisto/releases/download/v0.5.1/xisto-0.5.1-macos-arm64.tar.gz"
+      sha256 "6dfed73476167ff7e43dbf5cec98b822b9ca0253250e079778c63d1a720efe92"
     end
   end
   on_linux do
     on_intel do
-      url "https://github.com/xistolang/xisto/releases/download/v0.5.0/xisto-0.5.0-linux-x64.tar.gz"
-      sha256 "96c1c47731dfd7de5f64d4c4d67f4498cb6dbbaeed5fe38f730c0f4c26a1daee"
+      url "https://github.com/xistolang/xisto/releases/download/v0.5.1/xisto-0.5.1-linux-x64.tar.gz"
+      sha256 "5d225f3376ec588e84d6c48c3bacabb8253827581fc4d14ffeecc6cb101aa6e8"
     end
     on_arm do
-      url "https://github.com/xistolang/xisto/releases/download/v0.5.0/xisto-0.5.0-linux-arm64.tar.gz"
-      sha256 "7fc35c2a3ac6c0241c8db26293393a73e3dd7812f2034f6c00b4c0a180e9e009"
+      url "https://github.com/xistolang/xisto/releases/download/v0.5.1/xisto-0.5.1-linux-arm64.tar.gz"
+      sha256 "d6e847ba715b895f883ebe324a71edd7ff47b5444a9e6d3e5e104789754f31be"
     end
   end
 
