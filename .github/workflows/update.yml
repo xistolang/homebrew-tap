@@ -1,8 +1,9 @@
 # Keeps Formula/xisto.rb at xisto's latest release and tests it as a new user would.
 # The tap updates itself (no token from the xisto repository needed): every 30 minutes it reads the latest release
 # of xistolang/xisto, and when the version changed it renders the formula from that release's
-# packaging/homebrew/xisto.rb.in with the published sha256, commits it, then installs it on a clean macOS runner and
-# runs test/new-user.sh (brew install, xisto init, xisto add of the NestJS packages, build, run, curl).
+# packaging/homebrew/xisto.rb.in with the published sha256 of each archive (macOS arm64, Linux x64, Linux arm64),
+# commits it, then installs it on clean macOS arm64, Linux x64 and Linux arm64 runners and runs test/new-user.sh
+# (brew install, xisto init, xisto add of the NestJS packages, build, run, curl).
 name: update
 
 on:
@@ -38,12 +39,23 @@ jobs:
           TAG=$(gh release view --repo xistolang/xisto --json tagName --jq .tagName)
           V=${TAG#v}
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          gh release download "$TAG" --repo xistolang/xisto --pattern "xisto-$V-macos-arm64.tar.gz.sha256" --dir "$RUNNER_TEMP"
-          SHA=$(awk '{print $1}' "$RUNNER_TEMP/xisto-$V-macos-arm64.tar.gz.sha256")
-          case "$SHA" in *[!0-9a-f]*|"") echo "::error::bad sha256 for $TAG: '$SHA'"; exit 1 ;; esac
-          [ ${#SHA} -eq 64 ] || { echo "::error::bad sha256 length for $TAG"; exit 1; }
+          # the sha256 of one archive: the release's .sha256 file holds only the hash
+          sha() {
+            gh release download "$TAG" --repo xistolang/xisto --pattern "xisto-$V-$1.tar.gz.sha256" --dir "$RUNNER_TEMP" --clobber
+            S=$(awk '{print $1}' "$RUNNER_TEMP/xisto-$V-$1.tar.gz.sha256")
+            case "$S" in *[!0-9a-f]*|"") echo "::error::bad sha256 of $1 for $TAG: '$S'" >&2; exit 1 ;; esac
+            [ ${#S} -eq 64 ] || { echo "::error::bad sha256 length of $1 for $TAG" >&2; exit 1; }
+            echo "$S"
+          }
+          SHA_MACOS_ARM64=$(sha macos-arm64)
+          SHA_LINUX_X64=$(sha linux-x64)
+          SHA_LINUX_ARM64=$(sha linux-arm64)
           gh api "repos/xistolang/xisto/contents/packaging/homebrew/xisto.rb.in?ref=$TAG" --jq .content | base64 -d > "$RUNNER_TEMP/xisto.rb.in"
-          sed -e "s/@VERSION@/$V/g" -e "s/@SHA256@/$SHA/g" "$RUNNER_TEMP/xisto.rb.in" > Formula/xisto.rb
+          # (@SHA256@ is the single placeholder of the templates before Linux: the macOS archive)
+          sed -e "s/@VERSION@/$V/g" -e "s/@SHA256@/$SHA_MACOS_ARM64/g" -e "s/@SHA256_MACOS_ARM64@/$SHA_MACOS_ARM64/g" \
+              -e "s/@SHA256_LINUX_X64@/$SHA_LINUX_X64/g" -e "s/@SHA256_LINUX_ARM64@/$SHA_LINUX_ARM64/g" \
+              "$RUNNER_TEMP/xisto.rb.in" > Formula/xisto.rb
+          if grep -n '@[A-Z0-9_]*@' Formula/xisto.rb; then echo "::error::placeholder left in the formula"; exit 1; fi
           if git diff --quiet Formula/xisto.rb; then
             echo "formula already at $V"
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -59,9 +71,25 @@ jobs:
   new-user:
     needs: formula
     if: ${{ needs.formula.outputs.changed == 'true' || inputs.test }}
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-latest, ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install Homebrew on Linux
+        if: runner.os == 'Linux'
+        run: |
+          set -eu
+          # the x64 image ships Homebrew off PATH, the arm64 image does not ship it: the official installer either way
+          if [ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+            NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          fi
+          echo /home/linuxbrew/.linuxbrew/bin >> "$GITHUB_PATH"
+          echo /home/linuxbrew/.linuxbrew/sbin >> "$GITHUB_PATH"
+          /home/linuxbrew/.linuxbrew/bin/brew --version
+          cc --version | head -1
       - name: Install from the tap and build a NestJS app
         env:
           XISTO_EXPECT: ${{ needs.formula.outputs.version }}

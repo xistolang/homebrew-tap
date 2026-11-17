@@ -1,5 +1,5 @@
 #!/bin/sh
-# A new user on macOS arm64: brew install from this tap, xisto init, xisto add (the real package registry), a NestJS
+# A new user on macOS arm64 or Linux (x64, arm64): brew install from this tap, xisto init, xisto add (the real package registry), a NestJS
 # hello, build, run, curl; then the lock file alone brings the packages back (rm -rf .xisto && xisto install).
 # XISTO_EXPECT, when set, is the version xisto --version must print.
 set -eu
