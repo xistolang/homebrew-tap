@@ -2,18 +2,47 @@
 class Xisto < Formula
   desc "Native compiler for typed TypeScript"
   homepage "https://github.com/xistolang/xisto"
-  url "https://github.com/xistolang/xisto/releases/download/v0.4.5/xisto-0.4.5-macos-arm64.tar.gz"
-  version "0.4.5"
-  sha256 "3cf2719990b5d6971613489891fdae590064978ab64d73be355d2d6413c05330"
+  version "0.5.0"
   license "Apache-2.0" => { with: "LLVM-exception" }
 
-  depends_on arch: :arm64
-  depends_on :macos
+  on_macos do
+    depends_on arch: :arm64 # (Intel Macs: build from source)
+    on_arm do
+      url "https://github.com/xistolang/xisto/releases/download/v0.5.0/xisto-0.5.0-macos-arm64.tar.gz"
+      sha256 "09b66e5decd1b665d682d6fe6e5bad4ba8a836247b0554267119e4cda535ef0d"
+    end
+  end
+  on_linux do
+    on_intel do
+      url "https://github.com/xistolang/xisto/releases/download/v0.5.0/xisto-0.5.0-linux-x64.tar.gz"
+      sha256 "96c1c47731dfd7de5f64d4c4d67f4498cb6dbbaeed5fe38f730c0f4c26a1daee"
+    end
+    on_arm do
+      url "https://github.com/xistolang/xisto/releases/download/v0.5.0/xisto-0.5.0-linux-arm64.tar.gz"
+      sha256 "7fc35c2a3ac6c0241c8db26293393a73e3dd7812f2034f6c00b4c0a180e9e009"
+    end
+  end
+
+  # xisto compiles the C it generates with the system C compiler (XISTO_CC, else clang, else cc): on macOS clang from
+  # the Xcode Command Line Tools, on Linux the gcc or clang Homebrew on Linux itself asks for (build-essential,
+  # "Development Tools"). No Homebrew compiler is pulled in: it would add hundreds of megabytes to every install
+  # for a compiler Homebrew on Linux already requires on the machine.
 
   def install
     libexec.install Dir["*"]
     # a script, not a link: xisto finds qbe, the runtime objects and the packages next to its real executable
     bin.write_exec_script libexec/"build/xisto"
+  end
+
+  def caveats
+    on_linux do
+      <<~EOS
+        xisto calls the system C compiler (clang if it is on PATH, else cc). If `cc --version` fails, install one:
+          sudo apt-get install build-essential     # Debian, Ubuntu
+          sudo dnf install gcc                     # Fedora, RHEL, Amazon Linux
+        clang makes faster programs than gcc: sudo apt-get install clang / sudo dnf install clang.
+      EOS
+    end
   end
 
   test do
